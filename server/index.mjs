@@ -3,11 +3,13 @@
 //
 //   ANTHROPIC_API_KEY=sk-ant-... node server/index.mjs
 //
-// Env: ANTHROPIC_API_KEY (required), ANTHROPIC_MODEL (optional), PORT (default 8787)
+// Env: ANTHROPIC_API_KEY (required), ANTHROPIC_MODEL (default claude-sonnet-5-5),
+//      ANTHROPIC_EFFORT (default low), PORT (default 8787)
 import http from 'node:http';
 
 const PORT = Number(process.env.PORT ?? 8787);
-const MODEL = process.env.ANTHROPIC_MODEL ?? 'claude-sonnet-4-5';
+const MODEL = process.env.ANTHROPIC_MODEL ?? 'claude-sonnet-5-5';
+const EFFORT = process.env.ANTHROPIC_EFFORT ?? 'low'; // low | medium | high — low keeps chat snappy
 const KEY = process.env.ANTHROPIC_API_KEY;
 if (!KEY) {
   console.error('Missing ANTHROPIC_API_KEY');
@@ -25,18 +27,18 @@ Rules:
 - English is ONLY a hint: put a natural English translation of your reply in "en".
 - If the learner's LAST message has a grammar, particle, conjugation or word-choice mistake, fill "correction" with the smallest wrong fragment, the corrected fragment, a short explanation in simple Japanese (with furigana notation), and a one-line English hint. If it was correct or only a stylistic nit, omit "correction".
 - "suggestions": 2 short example replies the learner could give, in Japanese, at their level.
-Always respond by calling the "reply" tool.`;
+Respond with JSON matching the schema.`;
 
-const tool = {
-  name: 'reply',
-  description: "さくら先生's next turn in the conversation.",
-  input_schema: {
+// Structured output schema (output_config.format). Every object needs additionalProperties: false.
+const schema = {
     type: 'object',
+    additionalProperties: false,
     properties: {
       ja: { type: 'string', description: 'Reply in Japanese with 漢字{かんじ} furigana notation' },
       en: { type: 'string', description: 'English translation hint of the reply' },
       correction: {
         type: 'object',
+        additionalProperties: false,
         properties: {
           wrong: { type: 'string' },
           right: { type: 'string' },
@@ -45,10 +47,9 @@ const tool = {
         },
         required: ['wrong', 'right', 'explanation', 'en'],
       },
-      suggestions: { type: 'array', items: { type: 'string' }, maxItems: 3 },
+      suggestions: { type: 'array', items: { type: 'string' }, description: '2 short example replies' },
     },
     required: ['ja', 'en', 'suggestions'],
-  },
 };
 
 async function callClaude(body) {
@@ -63,23 +64,24 @@ async function callClaude(body) {
     headers: { 'content-type': 'application/json', 'x-api-key': KEY, 'anthropic-version': '2023-06-01' },
     body: JSON.stringify({
       model: MODEL,
-      max_tokens: 800,
+      max_tokens: 4000, // headroom for adaptive thinking
       system: system({
         level: body.level ?? 'N3',
         name: String(body.name ?? 'ニコ').slice(0, 40),
         topic: String(body.topic ?? 'everyday life').slice(0, 200),
         grammar: String(body.grammar ?? '').slice(0, 100),
       }),
-      tools: [tool],
-      tool_choice: { type: 'tool', name: 'reply' },
+      output_config: { effort: EFFORT, format: { type: 'json_schema', schema } },
       messages,
     }),
   });
   if (!res.ok) throw new Error(`Anthropic ${res.status}: ${await res.text()}`);
   const data = await res.json();
-  const block = data.content?.find((b) => b.type === 'tool_use');
-  if (!block) throw new Error('No tool_use block in response');
-  return { suggestions: [], ...block.input };
+  // Thinking blocks may come first, so take the first text block.
+  const block = data.content?.find((b) => b.type === 'text');
+  if (!block) throw new Error(`No text block in response (stop_reason: ${data.stop_reason})`);
+  const out = JSON.parse(block.text);
+  return { ...out, suggestions: (out.suggestions ?? []).slice(0, 3) };
 }
 
 const cors = {
@@ -106,4 +108,4 @@ http
       res.writeHead(502, { ...cors, 'content-type': 'application/json' }).end(JSON.stringify({ error: 'tutor_failed' }));
     }
   })
-  .listen(PORT, '0.0.0.0', () => console.log(`さくら先生 listening on http://0.0.0.0:${PORT} (model ${MODEL})`));
+  .listen(PORT, '0.0.0.0', () => console.log(`さくら先生 listening on http://0.0.0.0:${PORT} (model ${MODEL}, effort ${EFFORT})`));

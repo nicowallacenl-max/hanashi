@@ -33,7 +33,7 @@ EXPO_PUBLIC_TUTOR_URL=http://192.168.1.20:8787 npx expo start
 ```
 
 You can also put `EXPO_PUBLIC_TUTOR_URL` in `.env.local` (see `.env.example`).
-Set `ANTHROPIC_MODEL` to choose which Claude model the server uses.
+The server uses Claude Sonnet 5.5 (`claude-sonnet-5-5`) by default. Override with `ANTHROPIC_MODEL`, and set `ANTHROPIC_EFFORT` (`low` by default, or `medium`/`high`) to trade speed for depth.
 
 To use the tutor away from home, deploy `server/index.mjs` to any Node 18+ host and point `EXPO_PUBLIC_TUTOR_URL` at it.
 
@@ -47,7 +47,7 @@ src/data/           N3 starter deck, daily conversation topics
 src/lib/store.tsx   persisted state (AsyncStorage), SRS scheduler, streak
 src/lib/tutor.ts    tutor client and offline fallback
 src/theme.ts        colours and fonts
-server/index.mjs    Claude proxy (tool-use → structured reply JSON)
+server/index.mjs    Claude proxy (structured JSON output)
 ```
 
 ## Furigana notation

@@ -20,7 +20,7 @@ Read `AGENTS.md` first for the Expo rules: SDK 57, routes in `src/app/`, use `np
 - State: `src/lib/store.tsx`, a React context persisted to AsyncStorage under `hanashi:v1`. If you change the shape, bump the key or migrate the data.
 - SRS: `schedule()` in the store is a simplified SM-2.
 - Tutor: `src/lib/tutor.ts` sends a POST to `${EXPO_PUBLIC_TUTOR_URL}/chat`. When that variable isn't set, it falls back to the offline script.
-- Server: `server/index.mjs` has no dependencies. It forces a `reply` tool call so the output is structured: `{ ja, en, correction?, suggestions }`. The API key stays on the server.
+- Server: `server/index.mjs` has no dependencies. It uses structured outputs (`output_config.format` with a JSON schema) so replies come back as `{ ja, en, correction?, suggestions }`. The default model is `claude-sonnet-5-5`, which rejects forced `tool_choice`, so don't switch back to forced tool use. The API key stays on the server.
 
 ## Checks
 
